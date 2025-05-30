@@ -144,7 +144,7 @@ install_essential_packages() {
         "strace"
         "sysstat"
         "iotop"
-        "dstat"
+        "htop"
         "tree"
         "tmux"
         "screen"
