@@ -124,13 +124,14 @@ install_essential_packages() {
         "gzip"
     )
     
-    # Paquetes específicos para Raspberry Pi
+    # Paquetes específicos para Raspberry Pi (Arch Linux ARM)
     local rpi_packages=(
-        "raspberrypi-bootloader"
-        "raspberrypi-firmware"
-        "pi-bluetooth"
+        "linux-rpi"
+        "raspberrypi-bootloader-x"
         "bluez"
         "bluez-utils"
+        "wireless-regdb"
+        "wpa_supplicant"
     )
     
     # Herramientas de red y monitoreo
