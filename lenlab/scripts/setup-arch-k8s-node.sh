@@ -217,6 +217,9 @@ setup_network() {
     
     print_status "Configurando interfaz: $interface"
     
+    # Asegurarse de que el directorio existe
+    mkdir -p "/etc/NetworkManager/system-connections"
+    
     # Crear configuración de NetworkManager
     cat > "/etc/NetworkManager/system-connections/static-$interface.nmconnection" << EOF
 [connection]
@@ -354,6 +357,10 @@ setup_firewall() {
 optimize_for_kubernetes() {
     print_status "Aplicando optimizaciones para Kubernetes..."
     
+    # Asegurarse de que los directorios existen
+    mkdir -p /etc/sysctl.d
+    mkdir -p /etc/modules-load.d
+    
     # Configurar parámetros del kernel
     cat > /etc/sysctl.d/99-kubernetes.conf << EOF
 # Optimizaciones para Kubernetes
@@ -419,18 +426,22 @@ setup_system_services() {
     
     # Habilitar servicios necesarios
     for service in "${services_enable[@]}"; do
-        if systemctl list-unit-files | grep -q "^$service"; then
-            systemctl enable "$service"
+        if systemctl list-unit-files | grep -qE "^${service}(\.service)?\s"; then
+            systemctl enable "$service" 2>/dev/null || true
             print_status "Servicio $service habilitado"
+        else
+            print_warning "Servicio $service no encontrado, omitiendo..."
         fi
     done
     
     # Deshabilitar servicios innecesarios
     for service in "${services_disable[@]}"; do
-        if systemctl list-unit-files | grep -q "^$service"; then
+        if systemctl list-unit-files | grep -qE "^${service}(\.service)?\s"; then
             systemctl disable "$service" 2>/dev/null || true
             systemctl stop "$service" 2>/dev/null || true
             print_status "Servicio $service deshabilitado"
+        else
+            print_status "Servicio $service no encontrado (ya deshabilitado)"
         fi
     done
     
@@ -440,6 +451,9 @@ setup_system_services() {
 # Configurar límites del sistema
 setup_system_limits() {
     print_status "Configurando límites del sistema..."
+    
+    # Asegurarse de que el directorio existe antes de escribir el archivo
+    mkdir -p /etc/security/limits.d
     
     cat > /etc/security/limits.d/99-kubernetes.conf << EOF
 # Límites para Kubernetes
@@ -453,6 +467,29 @@ root soft nproc 32768
 root hard nproc 32768
 EOF
     
+    # Configuración alternativa en caso de que limits.d no funcione
+    if [ -f /etc/security/limits.conf ]; then
+        # Hacer backup del archivo original
+        cp /etc/security/limits.conf /etc/security/limits.conf.bak
+        
+        # Verificar si ya existen las configuraciones
+        if ! grep -q "# Kubernetes limits" /etc/security/limits.conf; then
+            print_status "Añadiendo límites a /etc/security/limits.conf..."
+            cat >> /etc/security/limits.conf << EOF
+
+# Kubernetes limits
+* soft nofile 65536
+* hard nofile 65536
+* soft nproc 32768
+* hard nproc 32768
+root soft nofile 65536
+root hard nofile 65536
+root soft nproc 32768
+root hard nproc 32768
+EOF
+        fi
+    fi
+    
     print_success "Límites del sistema configurados"
 }
 
@@ -463,6 +500,9 @@ setup_logging() {
     # Crear directorio para logs de Kubernetes
     mkdir -p /var/log/kubernetes
     chown $USER_NAME:$USER_NAME /var/log/kubernetes
+    
+    # Asegurarse de que el directorio de logrotate existe
+    mkdir -p /etc/logrotate.d
     
     # Configurar logrotate para logs de Kubernetes
     cat > /etc/logrotate.d/kubernetes << EOF
